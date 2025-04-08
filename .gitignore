@@ -1,0 +1,50 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Output of go build
+/bin/
+/build/
+/dist/
+
+# Go tools
+*.cover
+*.log
+*.prof
+*.tmp
+*.cache
+*.bench
+
+# Go module files cache
+vendor/
+/Gopkg.lock
+Gopkg.toml
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Test binary data
+testdata/**/out.*
+
+# Coverage results
+coverage.*
+*.cov
+*.coverprofile
+
+# GitHub Actions artifacts
+*.lcov
+
+config/local.env
