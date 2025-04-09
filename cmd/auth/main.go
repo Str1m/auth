@@ -1,21 +1,23 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log/slog"
 	"net"
 	"os"
 
-	"github.com/Str1m/auth/internal/config"
-	"github.com/Str1m/auth/internal/config/env"
 	"github.com/Str1m/auth/internal/grpc/auth"
-	"github.com/Str1m/auth/internal/lib/logger/handlers/slogpretty"
-	"github.com/Str1m/auth/internal/lib/logger/sl"
-	"github.com/Str1m/auth/internal/storage/postgres"
-	desc "github.com/Str1m/auth/pkg/auth_v1"
-
+	"github.com/Str1m/auth/internal/repository/users/postgres"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/Str1m/auth/internal/config"
+	"github.com/Str1m/auth/internal/config/env"
+	"github.com/Str1m/auth/internal/lib/logger/handlers/slogpretty"
+	"github.com/Str1m/auth/internal/lib/logger/sl"
+	desc "github.com/Str1m/auth/pkg/auth_v1"
 )
 
 const (
@@ -43,10 +45,12 @@ func main() {
 		log.Error("failed to get postgres config", sl.Err(err))
 	}
 
-	_, err = postgres.New(pgConfig.DSN())
+	pool, err := pgxpool.New(context.Background(), pgConfig.DSN())
 	if err != nil {
-		log.Error("failed to connect to db", sl.Err(err))
+		panic("")
 	}
+
+	repo := postgres.NewRepository(pool)
 
 	l, err := net.Listen("tcp", grpcConfig.Addr())
 	if err != nil {
@@ -56,7 +60,9 @@ func main() {
 	s := grpc.NewServer()
 	reflection.Register(s)
 
-	desc.RegisterAuthV1Server(s, &auth.Server{})
+	grpcServer := auth.New(repo)
+
+	desc.RegisterAuthV1Server(s, grpcServer)
 
 	log.Info("server listening", slog.String("Addr", grpcConfig.Addr()))
 

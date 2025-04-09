@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 
-	"github.com/Str1m/auth/internal/models"
 	desc "github.com/Str1m/auth/pkg/auth_v1"
 
 	"google.golang.org/grpc/codes"
@@ -13,42 +12,38 @@ import (
 
 type Server struct {
 	desc.UnimplementedAuthV1Server
-	auth Auth
+	repo Repo
 }
 
-func New(auth Auth) *Server {
-	return &Server{auth: auth}
+func New(repo Repo) *Server {
+	return &Server{
+		repo: repo,
+	}
 }
 
-type Auth interface {
-	Create(ctx context.Context, name, email, password, passwordConfirm string, role desc.Role) (int64, error)
-	Get(ctx context.Context, id int64) (models.UserInfo, error)
+type Repo interface {
+	Create(ctx context.Context, info *desc.UserInfo) (int64, error)
+	Get(ctx context.Context, id int64) (*desc.User, error)
 	Update(ctx context.Context, id int64, name, email *string) error
 	Delete(ctx context.Context, id int64) error
 }
 
 func (s *Server) Create(ctx context.Context, req *desc.CreateRequest) (*desc.CreateResponse, error) {
-	id, err := s.auth.Create(ctx, req.GetName(), req.GetEmail(), req.GetPassword(),
-		req.GetPasswordConfirm(), req.GetRole())
+	id, err := s.repo.Create(ctx, req.GetUserInfo())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to create user")
 	}
-	return &desc.CreateResponse{Id: id}, nil
+	return &desc.CreateResponse{
+		Id: id,
+	}, nil
 }
 
 func (s *Server) Get(ctx context.Context, req *desc.GetRequest) (*desc.GetResponse, error) {
-	userInfo, err := s.auth.Get(ctx, req.GetId())
+	user, err := s.repo.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get user")
 	}
-	return &desc.GetResponse{
-		Id:        userInfo.ID,
-		Name:      userInfo.Name,
-		Email:     userInfo.Email,
-		Role:      userInfo.Role,
-		CreatedAt: userInfo.CreatedAt,
-		UpdatedAt: userInfo.UpdatedAt,
-	}, nil
+	return &desc.GetResponse{User: user}, nil
 }
 
 func (s *Server) Update(ctx context.Context, req *desc.UpdateRequest) (*emptypb.Empty, error) {
@@ -59,14 +54,14 @@ func (s *Server) Update(ctx context.Context, req *desc.UpdateRequest) (*emptypb.
 	if req.GetEmail() != nil {
 		email = &req.Email.Value
 	}
-	if err := s.auth.Update(ctx, req.GetId(), name, email); err != nil {
+	if err := s.repo.Update(ctx, req.GetId(), name, email); err != nil {
 		return nil, status.Error(codes.Internal, "failed to update user")
 	}
 	return &emptypb.Empty{}, nil
 }
 
 func (s *Server) Delete(ctx context.Context, req *desc.DeleteRequest) (*emptypb.Empty, error) {
-	if err := s.auth.Delete(ctx, req.GetId()); err != nil {
+	if err := s.repo.Delete(ctx, req.GetId()); err != nil {
 		return nil, status.Error(codes.Internal, "failed to delete user")
 	}
 	return &emptypb.Empty{}, nil

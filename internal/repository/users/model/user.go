@@ -1,8 +1,9 @@
 package model
 
 import (
-	desc "github.com/Str1m/auth/pkg/auth_v1"
 	"time"
+
+	desc "github.com/Str1m/auth/pkg/auth_v1"
 )
 
 type User struct {
