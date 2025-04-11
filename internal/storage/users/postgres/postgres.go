@@ -3,9 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"github.com/Str1m/auth/internal/client/db"
-	modelService "github.com/Str1m/auth/internal/model"
 	"log"
+
+	"github.com/Str1m/auth/internal/client/db/postgres"
+	modelService "github.com/Str1m/auth/internal/model"
 
 	"github.com/Str1m/auth/internal/storage"
 	"github.com/Str1m/auth/internal/storage/users/converter"
@@ -27,10 +28,10 @@ const (
 )
 
 type StoragePG struct {
-	client *db.Client
+	client *postgres.ClientPG
 }
 
-func NewStoragePG(db *db.Client) *StoragePG {
+func NewStoragePG(db *postgres.ClientPG) *StoragePG {
 	return &StoragePG{client: db}
 }
 
@@ -51,7 +52,7 @@ func (r *StoragePG) Create(ctx context.Context, info *modelService.UserInfo, has
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
-	q := db.Query{
+	q := postgres.Query{
 		Name:     op,
 		QueryRaw: query,
 	}
@@ -77,7 +78,7 @@ func (r *StoragePG) Get(ctx context.Context, id int64) (*modelService.User, erro
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	q := db.Query{
+	q := postgres.Query{
 		Name:     op,
 		QueryRaw: query,
 	}
@@ -111,7 +112,7 @@ func (r *StoragePG) Update(ctx context.Context, id int64, name, email *string) e
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	q := db.Query{
+	q := postgres.Query{
 		Name:     op,
 		QueryRaw: query,
 	}
@@ -140,7 +141,7 @@ func (r *StoragePG) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	q := db.Query{
+	q := postgres.Query{
 		Name:     op,
 		QueryRaw: query,
 	}

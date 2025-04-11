@@ -2,29 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/Str1m/auth/internal/app"
 	"log"
+
+	"github.com/Str1m/auth/internal/app"
 )
 
-const DSN = "test"
-
 func main() {
-
-	//cfg, err := env.NewPGConfig()
-	//if err != nil {
-	//	log.Fatalf("failed to get pg config: %s", err.Error())
-	//}
-	//
-
-	//
-	//p, err := pgxpool.New(ctx, cfg.DSN())
-	//if err != nil {
-	//	log.Fatalln("err")
-	//}
-	//
-	//client := postgres.NewClientPG(p)
-	//
-	//DBLayer := postgres.NewStoragePG(client)
 	ctx := context.Background()
 
 	a, err := app.NewApp(ctx)

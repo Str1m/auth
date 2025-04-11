@@ -1,10 +1,12 @@
-package db
+package postgres
 
 import (
 	"context"
+
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Handler func(ctx context.Context) error
@@ -19,28 +21,19 @@ const (
 	TxKey key = "tx"
 )
 
-type DBLayer interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	Ping(ctx context.Context) error
-	Close()
-	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+type ClientPG struct {
+	db *pgxpool.Pool
 }
 
-type Client struct {
-	db DBLayer
+func NewClient(db *pgxpool.Pool) *ClientPG {
+	return &ClientPG{db: db}
 }
 
-func NewClient(db DBLayer) *Client {
-	return &Client{db: db}
-}
-
-func (p *Client) GetDB() DBLayer {
+func (p *ClientPG) GetDB() *pgxpool.Pool {
 	return p.db
 }
 
-func (p *Client) ExecContext(ctx context.Context, q Query, args ...any) (pgconn.CommandTag, error) {
+func (p *ClientPG) ExecContext(ctx context.Context, q Query, args ...any) (pgconn.CommandTag, error) {
 	tx, ok := ctx.Value(TxKey).(pgx.Tx)
 	if ok {
 		return tx.Exec(ctx, q.QueryRaw, args...)
@@ -48,7 +41,7 @@ func (p *Client) ExecContext(ctx context.Context, q Query, args ...any) (pgconn.
 	return p.db.Exec(ctx, q.QueryRaw, args...)
 }
 
-func (p *Client) QueryContext(ctx context.Context, q Query, args ...any) (pgx.Rows, error) {
+func (p *ClientPG) QueryContext(ctx context.Context, q Query, args ...any) (pgx.Rows, error) {
 	tx, ok := ctx.Value(TxKey).(pgx.Tx)
 	if ok {
 		return tx.Query(ctx, q.QueryRaw, args...)
@@ -56,7 +49,7 @@ func (p *Client) QueryContext(ctx context.Context, q Query, args ...any) (pgx.Ro
 	return p.db.Query(ctx, q.QueryRaw, args...)
 }
 
-func (p *Client) QueryRowContext(ctx context.Context, q Query, args ...any) pgx.Row {
+func (p *ClientPG) QueryRowContext(ctx context.Context, q Query, args ...any) pgx.Row {
 	tx, ok := ctx.Value(TxKey).(pgx.Tx)
 	if ok {
 		return tx.QueryRow(ctx, q.QueryRaw, args...)
@@ -65,15 +58,15 @@ func (p *Client) QueryRowContext(ctx context.Context, q Query, args ...any) pgx.
 	return p.db.QueryRow(ctx, q.QueryRaw, args...)
 }
 
-func (p *Client) Ping(ctx context.Context) error {
+func (p *ClientPG) Ping(ctx context.Context) error {
 	return p.db.Ping(ctx)
 }
 
-func (p *Client) Close() {
+func (p *ClientPG) Close() {
 	p.db.Close()
 }
 
-func (p *Client) ScanOneContext(ctx context.Context, dest any, q Query, args ...any) error {
+func (p *ClientPG) ScanOneContext(ctx context.Context, dest any, q Query, args ...any) error {
 	row, err := p.QueryContext(ctx, q, args...)
 	if err != nil {
 		return err
@@ -81,7 +74,7 @@ func (p *Client) ScanOneContext(ctx context.Context, dest any, q Query, args ...
 	return pgxscan.ScanOne(dest, row)
 }
 
-func (p *Client) ScanAllContext(ctx context.Context, dest any, q Query, args ...any) error {
+func (p *ClientPG) ScanAllContext(ctx context.Context, dest any, q Query, args ...any) error {
 	row, err := p.QueryContext(ctx, q, args...)
 	if err != nil {
 		return err

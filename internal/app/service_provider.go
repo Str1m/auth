@@ -2,16 +2,17 @@ package app
 
 import (
 	"context"
-	"github.com/Str1m/auth/internal/client/db"
+	"log"
+	"log/slog"
+	"os"
+	"syscall"
+
+	pgClient "github.com/Str1m/auth/internal/client/db/postgres"
 	"github.com/Str1m/auth/internal/client/db/transaction"
 	modelService "github.com/Str1m/auth/internal/model"
 	"github.com/Str1m/auth/internal/service/user"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log"
-	"log/slog"
-	"os"
-	"syscall"
 
 	userAPI "github.com/Str1m/auth/internal/api/user"
 	"github.com/Str1m/auth/internal/closer"
@@ -53,7 +54,7 @@ type Transactor interface {
 }
 
 type TxManager interface {
-	ReadCommitted(ctx context.Context, f db.Handler) error
+	ReadCommitted(ctx context.Context, f pgClient.Handler) error
 }
 
 type ServiceProvider struct {
@@ -63,7 +64,7 @@ type ServiceProvider struct {
 	storageConfig StorageConfig
 	grpcConfig    GRPCConfig
 
-	dbClient  *db.Client
+	dbClient  *pgClient.ClientPG
 	txManager *transaction.TxManager
 	dbLayer   Storage
 
@@ -124,14 +125,14 @@ func (s *ServiceProvider) GRPCConfig() GRPCConfig {
 	return s.grpcConfig
 }
 
-func (s *ServiceProvider) GetDBClient(ctx context.Context) *db.Client {
+func (s *ServiceProvider) GetDBClient(ctx context.Context) *pgClient.ClientPG {
 	if s.dbClient == nil {
 		p, err := pgxpool.New(ctx, s.GetStorageConfig().DSN())
 		if err != nil {
 			log.Fatalln("err")
 		}
 
-		s.dbClient = db.NewClient(p)
+		s.dbClient = pgClient.NewClient(p)
 	}
 
 	return s.dbClient

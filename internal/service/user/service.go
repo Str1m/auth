@@ -2,9 +2,10 @@ package user
 
 import (
 	"context"
+	"log/slog"
+
 	"github.com/Str1m/auth/internal/client/db/transaction"
 	modelService "github.com/Str1m/auth/internal/model"
-	"log/slog"
 )
 
 type DBLayer interface {

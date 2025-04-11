@@ -2,7 +2,8 @@ package transaction
 
 import (
 	"context"
-	db2 "github.com/Str1m/auth/internal/client/db"
+
+	"github.com/Str1m/auth/internal/client/db/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
@@ -10,22 +11,22 @@ import (
 // TODO: Проверить работу транзакций
 
 type TxManager struct {
-	db *db2.Client
+	db *postgres.ClientPG
 }
 
-func NewTransactionManager(db *db2.Client) *TxManager {
+func NewTransactionManager(db *postgres.ClientPG) *TxManager {
 	return &TxManager{
 		db: db,
 	}
 }
 
-func (m *TxManager) ReadCommitted(ctx context.Context, f db2.Handler) error {
+func (m *TxManager) ReadCommitted(ctx context.Context, f postgres.Handler) error {
 	txOpts := pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
 	return m.transaction(ctx, txOpts, f)
 }
 
-func (m *TxManager) transaction(ctx context.Context, opts pgx.TxOptions, f db2.Handler) (err error) {
-	tx, ok := ctx.Value(db2.TxKey).(pgx.Tx)
+func (m *TxManager) transaction(ctx context.Context, opts pgx.TxOptions, f postgres.Handler) (err error) {
+	tx, ok := ctx.Value(postgres.TxKey).(pgx.Tx)
 	if ok {
 		return f(ctx)
 	}
@@ -35,7 +36,7 @@ func (m *TxManager) transaction(ctx context.Context, opts pgx.TxOptions, f db2.H
 		return err
 	}
 
-	ctx = db2.MakeContextTx(ctx, tx)
+	ctx = postgres.MakeContextTx(ctx, tx)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -45,7 +46,6 @@ func (m *TxManager) transaction(ctx context.Context, opts pgx.TxOptions, f db2.H
 		if err != nil {
 			if errRollback := tx.Rollback(ctx); err != nil {
 				err = errors.Wrapf(err, "errRollback: %v", errRollback)
-
 			}
 			return
 		}

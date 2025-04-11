@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+
 	modelService "github.com/Str1m/auth/internal/model"
 	desc "github.com/Str1m/auth/pkg/auth_v1"
 )
