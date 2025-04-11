@@ -2,8 +2,9 @@ package config
 
 import "github.com/joho/godotenv"
 
-func MustLoad(path string) {
+func MustLoad(path string) error {
 	if err := godotenv.Load(path); err != nil {
-		panic("failed to load config")
+		return err
 	}
+	return nil
 }

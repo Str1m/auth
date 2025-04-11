@@ -2,102 +2,21 @@ package main
 
 import (
 	"context"
-	"flag"
-	"log/slog"
-	"net"
-	"os"
+	"log"
 
-	"github.com/Str1m/auth/internal/grpc/auth"
-	"github.com/Str1m/auth/internal/repository/users/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-
-	"github.com/Str1m/auth/internal/config"
-	"github.com/Str1m/auth/internal/config/env"
-	"github.com/Str1m/auth/internal/lib/logger/handlers/slogpretty"
-	"github.com/Str1m/auth/internal/lib/logger/sl"
-	desc "github.com/Str1m/auth/pkg/auth_v1"
-)
-
-const (
-	envLocal = "local"
-	envDev   = "dev"
-	envProd  = "prod"
+	"github.com/Str1m/auth/internal/app"
 )
 
 func main() {
-	var cfgPath string
-	flag.StringVar(&cfgPath, "config-path", ".env", "path to config file")
-	flag.Parse()
+	ctx := context.Background()
 
-	config.MustLoad(cfgPath)
-
-	log := setupLogger()
-
-	grpcConfig, err := env.NewGRPCConfig()
+	a, err := app.NewApp(ctx)
 	if err != nil {
-		log.Error("failed to get grpc config", sl.Err(err))
+		log.Fatalf("failed to init app %s", err.Error())
 	}
 
-	pgConfig, err := env.NewPGConfig()
+	err = a.Run()
 	if err != nil {
-		log.Error("failed to get postgres config", sl.Err(err))
+		log.Fatalf("failed to run app %s", err.Error())
 	}
-
-	pool, err := pgxpool.New(context.Background(), pgConfig.DSN())
-	if err != nil {
-		panic("")
-	}
-
-	repo := postgres.NewRepository(pool)
-
-	l, err := net.Listen("tcp", grpcConfig.Addr())
-	if err != nil {
-		log.Error("failed to listen", sl.Err(err))
-	}
-
-	s := grpc.NewServer()
-	reflection.Register(s)
-
-	grpcServer := auth.New(repo)
-
-	desc.RegisterAuthV1Server(s, grpcServer)
-
-	log.Info("server listening", slog.String("Addr", grpcConfig.Addr()))
-
-	if err = s.Serve(l); err != nil {
-		log.Error("failed to serve", sl.Err(err))
-	}
-}
-
-func setupLogger() *slog.Logger {
-	var log *slog.Logger
-	env := os.Getenv("ENV")
-	switch env {
-	case envLocal:
-		log = setupPrettySlog()
-	case envDev:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
-		)
-	case envProd:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
-		)
-	}
-
-	return log
-}
-
-func setupPrettySlog() *slog.Logger {
-	opts := slogpretty.PrettyHandlerOptions{
-		SlogOpts: &slog.HandlerOptions{
-			Level: slog.LevelDebug,
-		},
-	}
-
-	handler := opts.NewPrettyHandler(os.Stdout)
-
-	return slog.New(handler)
 }

@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Str1m/auth/internal/repository"
-	"github.com/Str1m/auth/internal/repository/users/converter"
-	"github.com/Str1m/auth/internal/repository/users/model"
-	desc "github.com/Str1m/auth/pkg/auth_v1"
+	modelService "github.com/Str1m/auth/internal/model"
+
+	"github.com/Str1m/auth/internal/storage"
+	"github.com/Str1m/auth/internal/storage/users/converter"
+	modelRepo "github.com/Str1m/auth/internal/storage/users/model"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,13 +38,13 @@ func (r *Repo) Close() {
 	r.db.Close()
 }
 
-func (r *Repo) Create(ctx context.Context, info *desc.UserInfo) (int64, error) {
+func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error) {
 	const op = "repository.users.Create"
 
 	builder := sq.Insert(tableName).
 		PlaceholderFormat(sq.Dollar).
 		Columns(nameColumn, emailColumn, passwordHashColumn, roleColumn).
-		Values(info.GetName(), info.GetEmail(), info.GetPassword(), info.GetRole()).Suffix("RETURNING id")
+		Values(info.Name, info.Email, hashedPassword, info.Role).Suffix("RETURNING id")
 
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -59,7 +60,7 @@ func (r *Repo) Create(ctx context.Context, info *desc.UserInfo) (int64, error) {
 	return id, nil
 }
 
-func (r *Repo) Get(ctx context.Context, id int64) (*desc.User, error) {
+func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	const op = "repository.users.Get"
 
 	builder := sq.Select(idColumn, nameColumn, emailColumn, roleColumn, createdAtColumn, updatedAtColumn).
@@ -67,7 +68,7 @@ func (r *Repo) Get(ctx context.Context, id int64) (*desc.User, error) {
 		From(tableName).
 		Where(sq.Eq{idColumn: id})
 
-	var user model.User
+	var user modelRepo.User
 	query, args, err := builder.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -83,7 +84,7 @@ func (r *Repo) Get(ctx context.Context, id int64) (*desc.User, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return converter.ToUserFromRepo(&user), nil
+	return converter.ToUserFromStorage(&user), nil
 }
 
 func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error {
@@ -112,7 +113,7 @@ func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error 
 	}
 
 	if result.RowsAffected() == 0 {
-		return repository.ErrUserNotFound
+		return storage.ErrUserNotFound
 	}
 
 	return nil
@@ -136,7 +137,7 @@ func (r *Repo) Delete(ctx context.Context, id int64) error {
 	}
 
 	if result.RowsAffected() == 0 {
-		return repository.ErrUserNotFound
+		return storage.ErrUserNotFound
 	}
 
 	return nil
