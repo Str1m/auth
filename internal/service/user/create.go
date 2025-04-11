@@ -22,10 +22,9 @@ func (s *Service) Create(ctx context.Context, userInfo *modelService.UserInfo) (
 
 	userInfo.Password, userInfo.PasswordConfirm = "", ""
 
-	id, err := s.UserRepository.Create(ctx, userInfo, hashedPassword)
+	id, err := s.UserDBClient.Create(ctx, userInfo, hashedPassword)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
-
 	return id, nil
 }

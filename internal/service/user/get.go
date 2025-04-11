@@ -9,7 +9,7 @@ import (
 
 func (s *Service) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	const op = "service.user.Get"
-	user, err := s.UserRepository.Get(ctx, id)
+	user, err := s.UserDBClient.Get(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}

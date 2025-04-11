@@ -7,14 +7,18 @@ import (
 	"os"
 	"syscall"
 
+	pgClient "github.com/Str1m/auth/internal/client/db/postgres"
+	"github.com/Str1m/auth/internal/client/db/transaction"
+	modelService "github.com/Str1m/auth/internal/model"
+	"github.com/Str1m/auth/internal/service/user"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	userAPI "github.com/Str1m/auth/internal/api/user"
 	"github.com/Str1m/auth/internal/closer"
 	"github.com/Str1m/auth/internal/config/env"
 	"github.com/Str1m/auth/internal/lib/logger/handlers/slogpretty"
-	modelService "github.com/Str1m/auth/internal/model"
-	"github.com/Str1m/auth/internal/service/user"
 	"github.com/Str1m/auth/internal/storage/users/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -22,20 +26,6 @@ const (
 	envDev   = "dev"
 	envProd  = "prod"
 )
-
-type Storage interface {
-	Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error)
-	Get(ctx context.Context, id int64) (*modelService.User, error)
-	Update(ctx context.Context, id int64, name, email *string) error
-	Delete(ctx context.Context, id int64) error
-}
-
-type Service interface {
-	Create(ctx context.Context, userInfo *modelService.UserInfo) (int64, error)
-	Get(ctx context.Context, id int64) (*modelService.User, error)
-	Update(ctx context.Context, id int64, name *string, email *string) error
-	Delete(ctx context.Context, id int64) error
-}
 
 type StorageConfig interface {
 	DSN() string
@@ -45,15 +35,38 @@ type GRPCConfig interface {
 	Address() string
 }
 
+type Service interface {
+	Create(ctx context.Context, userInfo *modelService.UserInfo) (int64, error)
+	Get(ctx context.Context, id int64) (*modelService.User, error)
+	Update(ctx context.Context, id int64, name *string, email *string) error
+	Delete(ctx context.Context, id int64) error
+}
+
+type Storage interface {
+	Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error)
+	Get(ctx context.Context, id int64) (*modelService.User, error)
+	Update(ctx context.Context, id int64, name, email *string) error
+	Delete(ctx context.Context, id int64) error
+}
+
+type Transactor interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+}
+
+type TxManager interface {
+	ReadCommitted(ctx context.Context, f pgClient.Handler) error
+}
+
 type ServiceProvider struct {
 	cls *closer.Closer
 	log *slog.Logger
 
-	repoConfig StorageConfig
-	grpcConfig GRPCConfig
+	storageConfig StorageConfig
+	grpcConfig    GRPCConfig
 
-	pgPool         *pgxpool.Pool
-	userRepository Storage
+	dbClient  *pgClient.ClientPG
+	txManager *transaction.TxManager
+	dbLayer   Storage
 
 	userService Service
 	userAPI     *userAPI.Implementation
@@ -63,7 +76,7 @@ func newServiceProvider() *ServiceProvider {
 	return &ServiceProvider{}
 }
 
-func (s *ServiceProvider) Closer() *closer.Closer {
+func (s *ServiceProvider) GetCloser() *closer.Closer {
 	if s.cls == nil {
 		s.cls = closer.New(os.Interrupt, syscall.SIGTERM)
 	}
@@ -71,7 +84,7 @@ func (s *ServiceProvider) Closer() *closer.Closer {
 	return s.cls
 }
 
-func (s *ServiceProvider) Log() *slog.Logger {
+func (s *ServiceProvider) GetLog() *slog.Logger {
 	if s.log == nil {
 		env := os.Getenv("ENV")
 		switch env {
@@ -90,15 +103,15 @@ func (s *ServiceProvider) Log() *slog.Logger {
 	return s.log
 }
 
-func (s *ServiceProvider) RepoConfig() StorageConfig {
-	if s.repoConfig == nil {
+func (s *ServiceProvider) GetStorageConfig() StorageConfig {
+	if s.storageConfig == nil {
 		cfg, err := env.NewPGConfig()
 		if err != nil {
 			log.Fatalf("failed to get pg config: %s", err.Error())
 		}
-		s.repoConfig = cfg
+		s.storageConfig = cfg
 	}
-	return s.repoConfig
+	return s.storageConfig
 }
 
 func (s *ServiceProvider) GRPCConfig() GRPCConfig {
@@ -112,35 +125,36 @@ func (s *ServiceProvider) GRPCConfig() GRPCConfig {
 	return s.grpcConfig
 }
 
-func (s *ServiceProvider) PGPool(ctx context.Context) *pgxpool.Pool {
-	if s.pgPool == nil {
-		pool, err := pgxpool.New(ctx, s.RepoConfig().DSN())
+func (s *ServiceProvider) GetDBClient(ctx context.Context) *pgClient.ClientPG {
+	if s.dbClient == nil {
+		p, err := pgxpool.New(ctx, s.GetStorageConfig().DSN())
 		if err != nil {
-			log.Fatalf("failed to connect to database: %s", err.Error())
+			log.Fatalln("err")
 		}
-		if err = pool.Ping(ctx); err != nil {
-			log.Fatalf("ping error: %s", err.Error())
-		}
-		s.Closer().Add(func() error {
-			pool.Close()
-			return nil
-		})
-		s.pgPool = pool
+
+		s.dbClient = pgClient.NewClient(p)
 	}
-	return s.pgPool
+
+	return s.dbClient
 }
 
-func (s *ServiceProvider) UserRepository(ctx context.Context) Storage {
-	if s.userRepository == nil {
-		s.userRepository = postgres.NewRepository(s.PGPool(ctx))
+func (s *ServiceProvider) GetTxManager(ctx context.Context) *transaction.TxManager {
+	if s.txManager == nil {
+		s.txManager = transaction.NewTransactionManager(s.GetDBClient(ctx))
 	}
+	return s.txManager
+}
 
-	return s.userRepository
+func (s *ServiceProvider) GetDBLayer(ctx context.Context) Storage {
+	if s.dbLayer == nil {
+		s.dbLayer = postgres.NewStoragePG(s.GetDBClient(ctx))
+	}
+	return s.dbLayer
 }
 
 func (s *ServiceProvider) UserService(ctx context.Context) Service {
 	if s.userService == nil {
-		s.userService = user.NewService(s.Log(), s.UserRepository(ctx))
+		s.userService = user.NewService(s.GetLog(), s.GetDBLayer(ctx), s.GetTxManager(ctx))
 	}
 	return s.userService
 }

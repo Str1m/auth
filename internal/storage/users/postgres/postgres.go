@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log"
 
+	"github.com/Str1m/auth/internal/client/db/postgres"
 	modelService "github.com/Str1m/auth/internal/model"
 
 	"github.com/Str1m/auth/internal/storage"
@@ -11,7 +13,6 @@ import (
 	modelRepo "github.com/Str1m/auth/internal/storage/users/model"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -26,19 +27,19 @@ const (
 	updatedAtColumn    = "updated_at"
 )
 
-type Repo struct {
-	db *pgxpool.Pool
+type StoragePG struct {
+	client *postgres.ClientPG
 }
 
-func NewRepository(db *pgxpool.Pool) *Repo {
-	return &Repo{db: db}
+func NewStoragePG(db *postgres.ClientPG) *StoragePG {
+	return &StoragePG{client: db}
 }
 
-func (r *Repo) Close() {
-	r.db.Close()
+func (r *StoragePG) Close() {
+	r.client.Close()
 }
 
-func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error) {
+func (r *StoragePG) Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error) {
 	const op = "repository.users.Create"
 
 	builder := sq.Insert(tableName).
@@ -51,18 +52,22 @@ func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPa
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
+	q := postgres.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+
 	var id int64
-	err = r.db.QueryRow(ctx, query, args...).Scan(&id)
+	err = r.client.QueryRowContext(ctx, q, args...).Scan(&id)
+
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
-
 	return id, nil
 }
 
-func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
+func (r *StoragePG) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	const op = "repository.users.Get"
-
 	builder := sq.Select(idColumn, nameColumn, emailColumn, roleColumn, createdAtColumn, updatedAtColumn).
 		PlaceholderFormat(sq.Dollar).
 		From(tableName).
@@ -73,21 +78,21 @@ func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	err = r.db.QueryRow(ctx, query, args...).Scan(
-		&user.ID,
-		&user.Name,
-		&user.Email,
-		&user.Role,
-		&user.CreatedAt,
-		&user.UpdatedAt)
+	q := postgres.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+	err = r.client.ScanOneContext(ctx, &user, q, args...)
+
 	if err != nil {
+		log.Printf("Error: %s", err.Error())
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return converter.ToUserFromStorage(&user), nil
 }
 
-func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error {
+func (r *StoragePG) Update(ctx context.Context, id int64, name, email *string) error {
 	const op = "repository.users.Update"
 
 	builder := sq.Update(tableName).
@@ -107,7 +112,12 @@ func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error 
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	result, err := r.db.Exec(ctx, query, args...)
+	q := postgres.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+
+	result, err := r.client.ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -119,7 +129,7 @@ func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error 
 	return nil
 }
 
-func (r *Repo) Delete(ctx context.Context, id int64) error {
+func (r *StoragePG) Delete(ctx context.Context, id int64) error {
 	const op = "repository.users.Delete"
 
 	builder := sq.Delete(tableName).
@@ -131,7 +141,12 @@ func (r *Repo) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	result, err := r.db.Exec(ctx, query, args...)
+	q := postgres.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+
+	result, err := r.client.ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}

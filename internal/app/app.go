@@ -75,7 +75,7 @@ func (a *App) initGRPC(ctx context.Context) error {
 	reflection.Register(a.grpcServer)
 
 	desc.RegisterAuthV1Server(a.grpcServer, a.serviceProvider.UserAPIImpl(ctx))
-	a.serviceProvider.cls.Add(func() error {
+	a.serviceProvider.GetCloser().Add(func() error {
 		a.grpcServer.GracefulStop()
 		return nil
 	})
@@ -83,11 +83,11 @@ func (a *App) initGRPC(ctx context.Context) error {
 }
 
 func (a *App) runGRPCServer() error {
-	a.serviceProvider.Log().Info("server listening", slog.String("Addr", a.serviceProvider.GRPCConfig().Address()))
+	a.serviceProvider.GetLog().Info("server listening", slog.String("Addr", a.serviceProvider.GRPCConfig().Address()))
 
 	l, err := net.Listen("tcp", a.serviceProvider.GRPCConfig().Address())
 	if err != nil {
-		a.serviceProvider.Log().Error("failed to listen", sl.Err(err))
+		a.serviceProvider.GetLog().Error("failed to listen", sl.Err(err))
 		return err
 	}
 

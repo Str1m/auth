@@ -13,6 +13,7 @@ type Service interface {
 	Update(ctx context.Context, id int64, name *string, email *string) error
 	Delete(ctx context.Context, id int64) error
 }
+
 type Implementation struct {
 	desc.UnimplementedAuthV1Server
 	userService Service
