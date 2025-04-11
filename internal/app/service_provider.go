@@ -26,19 +26,6 @@ const (
 	envProd  = "prod"
 )
 
-//	type Storage interface {
-//		Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error)
-//		Get(ctx context.Context, id int64) (*modelService.User, error)
-//		Update(ctx context.Context, id int64, name, email *string) error
-//		Delete(ctx context.Context, id int64) error
-//	}
-//
-//	type Service interface {
-//		Create(ctx context.Context, userInfo *modelService.UserInfo) (int64, error)
-//		Get(ctx context.Context, id int64) (*modelService.User, error)
-//		Update(ctx context.Context, id int64, name *string, email *string) error
-//		Delete(ctx context.Context, id int64) error
-//	}
 type StorageConfig interface {
 	DSN() string
 }
@@ -46,37 +33,6 @@ type StorageConfig interface {
 type GRPCConfig interface {
 	Address() string
 }
-
-//type DB interface {
-//	SQLExecer
-//	Pinger
-//	Close()
-//}
-//
-//type SQLExecer interface {
-//	NamedExecer
-//	QueryExecer
-//}
-//
-//type NamedExecer interface {
-//	ScanOneContext(ctx context.Context, dest interface{}, q db.Query, args ...interface{}) error
-//	ScanAllContext(ctx context.Context, dest interface{}, q db.Query, args ...interface{}) error
-//}
-//
-//type QueryExecer interface {
-//	ExecContext(ctx context.Context, q db.Query, args ...interface{}) (pgconn.CommandTag, error)
-//	QueryContext(ctx context.Context, q db.Query, args ...interface{}) (pgx.Rows, error)
-//	QueryRowContext(ctx context.Context, q db.Query, args ...interface{}) pgx.Row
-//}
-//
-//type Pinger interface {
-//	Ping(ctx context.Context) error
-//}
-//
-//type Client interface {
-//	DB() DB
-//	Close() error
-//}
 
 type ServiceProvider struct {
 	cls *closer.Closer

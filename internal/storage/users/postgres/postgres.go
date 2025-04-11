@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/Str1m/auth/internal/client/db"
 	modelService "github.com/Str1m/auth/internal/model"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 
 	"github.com/Str1m/auth/internal/storage"
@@ -26,50 +27,19 @@ const (
 	updatedAtColumn    = "updated_at"
 )
 
-//type DB interface {
-//	SQLExecer
-//	Pinger
-//	Close()
-//}
-//
-//type SQLExecer interface {
-//	NamedExecer
-//	QueryExecer
-//}
-//
-//type NamedExecer interface {
-//	ScanOneContext(ctx context.Context, dest interface{}, q db.Query, args ...interface{}) error
-//	ScanAllContext(ctx context.Context, dest interface{}, q db.Query, args ...interface{}) error
-//}
-//
-//type QueryExecer interface {
-//	ExecContext(ctx context.Context, q db.Query, args ...interface{}) (pgconn.CommandTag, error)
-//	QueryContext(ctx context.Context, q db.Query, args ...interface{}) (pgx.Rows, error)
-//	QueryRowContext(ctx context.Context, q db.Query, args ...interface{}) pgx.Row
-//}
-//
-//type Pinger interface {
-//	Ping(ctx context.Context) error
-//}
-//
-//type Client interface {
-//	DB() DB
-//	Close() error
-//}
-
-type Repo struct {
-	db db.Client
+type StoragePG struct {
+	db *pgxpool.Pool
 }
 
-func NewRepository(db db.Client) storage.Repository {
-	return &Repo{db: db}
+func NewRepository(db *pgxpool.Pool) *StoragePG {
+	return &StoragePG{db: db}
 }
 
-func (r *Repo) Close() {
+func (r *StoragePG) Close() {
 	r.db.Close()
 }
 
-func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error) {
+func (r *StoragePG) Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error) {
 	const op = "repository.users.Create"
 
 	builder := sq.Insert(tableName).
@@ -88,7 +58,8 @@ func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPa
 	}
 
 	var id int64
-	err = r.db.DB().QueryRowContext(ctx, q, args...).Scan(&id)
+	//err = r.db.DB().QueryRowContext(ctx, q, args...).Scan(&id)
+	err = r.db.QueryRow(ctx, q.QueryRaw, args...).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -96,7 +67,7 @@ func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPa
 	return id, nil
 }
 
-func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
+func (r *StoragePG) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	const op = "repository.users.Get"
 	builder := sq.Select(idColumn, nameColumn, emailColumn, roleColumn, createdAtColumn, updatedAtColumn).
 		PlaceholderFormat(sq.Dollar).
@@ -112,7 +83,15 @@ func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
 		Name:     op,
 		QueryRaw: query,
 	}
-	err = r.db.DB().ScanOneContext(ctx, &user, q, args...)
+	//err = r.db.DB().ScanOneContext(ctx, &user, q, args...)
+	err = r.db.QueryRow(ctx, q.QueryRaw, args...).Scan(
+		&user.ID,
+		&user.Name,
+		&user.Email,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
 	if err != nil {
 		log.Printf("Error: %s", err.Error())
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -121,7 +100,7 @@ func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	return converter.ToUserFromStorage(&user), nil
 }
 
-func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error {
+func (r *StoragePG) Update(ctx context.Context, id int64, name, email *string) error {
 	const op = "repository.users.Update"
 
 	builder := sq.Update(tableName).
@@ -146,7 +125,8 @@ func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error 
 		QueryRaw: query,
 	}
 
-	result, err := r.db.DB().ExecContext(ctx, q, args...)
+	//result, err := r.db.DB().ExecContext(ctx, q, args...)
+	result, err := r.db.Exec(ctx, q.QueryRaw, args)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -158,7 +138,7 @@ func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error 
 	return nil
 }
 
-func (r *Repo) Delete(ctx context.Context, id int64) error {
+func (r *StoragePG) Delete(ctx context.Context, id int64) error {
 	const op = "repository.users.Delete"
 
 	builder := sq.Delete(tableName).
@@ -175,7 +155,8 @@ func (r *Repo) Delete(ctx context.Context, id int64) error {
 		QueryRaw: query,
 	}
 
-	result, err := r.db.DB().ExecContext(ctx, q, args...)
+	//result, err := r.db.DB().ExecContext(ctx, q, args...)
+	result, err := r.db.Exec(ctx, q.QueryRaw, args)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
