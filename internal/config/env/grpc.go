@@ -29,6 +29,6 @@ func NewGRPCConfig() (*GRPCConfig, error) {
 	return &GRPCConfig{addr: net.JoinHostPort(host, port)}, nil
 }
 
-func (g *GRPCConfig) Addr() string {
+func (g *GRPCConfig) Address() string {
 	return g.addr
 }
