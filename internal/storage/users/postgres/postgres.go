@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/Str1m/auth/internal/client/db"
 	modelService "github.com/Str1m/auth/internal/model"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 
 	"github.com/Str1m/auth/internal/storage"
@@ -28,15 +27,15 @@ const (
 )
 
 type StoragePG struct {
-	db *pgxpool.Pool
+	client *ClientPG
 }
 
-func NewRepository(db *pgxpool.Pool) *StoragePG {
-	return &StoragePG{db: db}
+func NewStoragePG(db *ClientPG) *StoragePG {
+	return &StoragePG{client: db}
 }
 
 func (r *StoragePG) Close() {
-	r.db.Close()
+	r.client.Close()
 }
 
 func (r *StoragePG) Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error) {
@@ -58,8 +57,8 @@ func (r *StoragePG) Create(ctx context.Context, info *modelService.UserInfo, has
 	}
 
 	var id int64
-	//err = r.db.DB().QueryRowContext(ctx, q, args...).Scan(&id)
-	err = r.db.QueryRow(ctx, q.QueryRaw, args...).Scan(&id)
+	err = r.client.QueryRowContext(ctx, q, args...).Scan(&id)
+
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -83,15 +82,8 @@ func (r *StoragePG) Get(ctx context.Context, id int64) (*modelService.User, erro
 		Name:     op,
 		QueryRaw: query,
 	}
-	//err = r.db.DB().ScanOneContext(ctx, &user, q, args...)
-	err = r.db.QueryRow(ctx, q.QueryRaw, args...).Scan(
-		&user.ID,
-		&user.Name,
-		&user.Email,
-		&user.Role,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	err = r.client.ScanOneContext(ctx, &user, q, args...)
+
 	if err != nil {
 		log.Printf("Error: %s", err.Error())
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -125,8 +117,7 @@ func (r *StoragePG) Update(ctx context.Context, id int64, name, email *string) e
 		QueryRaw: query,
 	}
 
-	//result, err := r.db.DB().ExecContext(ctx, q, args...)
-	result, err := r.db.Exec(ctx, q.QueryRaw, args)
+	result, err := r.client.ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -155,8 +146,7 @@ func (r *StoragePG) Delete(ctx context.Context, id int64) error {
 		QueryRaw: query,
 	}
 
-	//result, err := r.db.DB().ExecContext(ctx, q, args...)
-	result, err := r.db.Exec(ctx, q.QueryRaw, args)
+	result, err := r.client.ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
