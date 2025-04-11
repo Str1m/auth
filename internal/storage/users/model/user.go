@@ -7,18 +7,18 @@ import (
 )
 
 type User struct {
-	ID        int64
-	Name      string
-	Email     string
-	Role      desc.Role
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        int64     `db:"id"`
+	Name      string    `db:"name"`
+	Email     string    `db:"email"`
+	Role      desc.Role `db:"role"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 type UserInfo struct {
-	Name            string
-	Email           string
-	Password        string
-	PasswordConfirm string
-	Role            desc.Role
+	Name            string    `db:"id"`
+	Email           string    `db:"email"`
+	Password        string    `db:"password"`
+	PasswordConfirm string    `db:"password_confirm"`
+	Role            desc.Role `db:"role"`
 }

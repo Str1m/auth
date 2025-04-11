@@ -3,15 +3,15 @@ package postgres
 import (
 	"context"
 	"fmt"
-
+	"github.com/Str1m/auth/internal/client/db"
 	modelService "github.com/Str1m/auth/internal/model"
+	"log"
 
 	"github.com/Str1m/auth/internal/storage"
 	"github.com/Str1m/auth/internal/storage/users/converter"
 	modelRepo "github.com/Str1m/auth/internal/storage/users/model"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -26,11 +26,42 @@ const (
 	updatedAtColumn    = "updated_at"
 )
 
+//type DB interface {
+//	SQLExecer
+//	Pinger
+//	Close()
+//}
+//
+//type SQLExecer interface {
+//	NamedExecer
+//	QueryExecer
+//}
+//
+//type NamedExecer interface {
+//	ScanOneContext(ctx context.Context, dest interface{}, q db.Query, args ...interface{}) error
+//	ScanAllContext(ctx context.Context, dest interface{}, q db.Query, args ...interface{}) error
+//}
+//
+//type QueryExecer interface {
+//	ExecContext(ctx context.Context, q db.Query, args ...interface{}) (pgconn.CommandTag, error)
+//	QueryContext(ctx context.Context, q db.Query, args ...interface{}) (pgx.Rows, error)
+//	QueryRowContext(ctx context.Context, q db.Query, args ...interface{}) pgx.Row
+//}
+//
+//type Pinger interface {
+//	Ping(ctx context.Context) error
+//}
+//
+//type Client interface {
+//	DB() DB
+//	Close() error
+//}
+
 type Repo struct {
-	db *pgxpool.Pool
+	db db.Client
 }
 
-func NewRepository(db *pgxpool.Pool) *Repo {
+func NewRepository(db db.Client) storage.Repository {
 	return &Repo{db: db}
 }
 
@@ -51,8 +82,13 @@ func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPa
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
+	q := db.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+
 	var id int64
-	err = r.db.QueryRow(ctx, query, args...).Scan(&id)
+	err = r.db.DB().QueryRowContext(ctx, q, args...).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
@@ -62,7 +98,6 @@ func (r *Repo) Create(ctx context.Context, info *modelService.UserInfo, hashedPa
 
 func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	const op = "repository.users.Get"
-
 	builder := sq.Select(idColumn, nameColumn, emailColumn, roleColumn, createdAtColumn, updatedAtColumn).
 		PlaceholderFormat(sq.Dollar).
 		From(tableName).
@@ -73,14 +108,13 @@ func (r *Repo) Get(ctx context.Context, id int64) (*modelService.User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	err = r.db.QueryRow(ctx, query, args...).Scan(
-		&user.ID,
-		&user.Name,
-		&user.Email,
-		&user.Role,
-		&user.CreatedAt,
-		&user.UpdatedAt)
+	q := db.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+	err = r.db.DB().ScanOneContext(ctx, &user, q, args...)
 	if err != nil {
+		log.Printf("Error: %s", err.Error())
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -107,7 +141,12 @@ func (r *Repo) Update(ctx context.Context, id int64, name, email *string) error 
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	result, err := r.db.Exec(ctx, query, args...)
+	q := db.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+
+	result, err := r.db.DB().ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -131,7 +170,12 @@ func (r *Repo) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	result, err := r.db.Exec(ctx, query, args...)
+	q := db.Query{
+		Name:     op,
+		QueryRaw: query,
+	}
+
+	result, err := r.db.DB().ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
