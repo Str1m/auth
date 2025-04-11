@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"github.com/Str1m/auth/internal/client/db/transaction"
 	modelService "github.com/Str1m/auth/internal/model"
 	"log/slog"
 )
@@ -15,12 +16,13 @@ type DBLayer interface {
 type Service struct {
 	log          *slog.Logger
 	UserDBClient DBLayer
-	//TxManager      db.TxManager
+	txManager    *transaction.TxManager
 }
 
-func NewService(log *slog.Logger, dbClient DBLayer) *Service {
+func NewService(log *slog.Logger, dbClient DBLayer, txManager *transaction.TxManager) *Service {
 	return &Service{
 		log:          log,
 		UserDBClient: dbClient,
+		txManager:    txManager,
 	}
 }

@@ -27,10 +27,10 @@ const (
 )
 
 type StoragePG struct {
-	client *ClientPG
+	client *db.Client
 }
 
-func NewStoragePG(db *ClientPG) *StoragePG {
+func NewStoragePG(db *db.Client) *StoragePG {
 	return &StoragePG{client: db}
 }
 

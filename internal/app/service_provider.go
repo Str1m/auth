@@ -2,8 +2,11 @@ package app
 
 import (
 	"context"
+	"github.com/Str1m/auth/internal/client/db"
+	"github.com/Str1m/auth/internal/client/db/transaction"
 	modelService "github.com/Str1m/auth/internal/model"
 	"github.com/Str1m/auth/internal/service/user"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 	"log/slog"
@@ -45,6 +48,14 @@ type Storage interface {
 	Delete(ctx context.Context, id int64) error
 }
 
+type Transactor interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+}
+
+type TxManager interface {
+	ReadCommitted(ctx context.Context, f db.Handler) error
+}
+
 type ServiceProvider struct {
 	cls *closer.Closer
 	log *slog.Logger
@@ -52,8 +63,9 @@ type ServiceProvider struct {
 	storageConfig StorageConfig
 	grpcConfig    GRPCConfig
 
-	dbClient *postgres.ClientPG
-	dbLayer  Storage
+	dbClient  *db.Client
+	txManager *transaction.TxManager
+	dbLayer   Storage
 
 	userService Service
 	userAPI     *userAPI.Implementation
@@ -112,17 +124,24 @@ func (s *ServiceProvider) GRPCConfig() GRPCConfig {
 	return s.grpcConfig
 }
 
-func (s *ServiceProvider) GetDBClient(ctx context.Context) *postgres.ClientPG {
+func (s *ServiceProvider) GetDBClient(ctx context.Context) *db.Client {
 	if s.dbClient == nil {
 		p, err := pgxpool.New(ctx, s.GetStorageConfig().DSN())
 		if err != nil {
 			log.Fatalln("err")
 		}
 
-		s.dbClient = postgres.NewClientPG(p)
+		s.dbClient = db.NewClient(p)
 	}
 
 	return s.dbClient
+}
+
+func (s *ServiceProvider) GetTxManager(ctx context.Context) *transaction.TxManager {
+	if s.txManager == nil {
+		s.txManager = transaction.NewTransactionManager(s.GetDBClient(ctx))
+	}
+	return s.txManager
 }
 
 func (s *ServiceProvider) GetDBLayer(ctx context.Context) Storage {
@@ -134,7 +153,7 @@ func (s *ServiceProvider) GetDBLayer(ctx context.Context) Storage {
 
 func (s *ServiceProvider) UserService(ctx context.Context) Service {
 	if s.userService == nil {
-		s.userService = user.NewService(s.GetLog(), s.GetDBLayer(ctx))
+		s.userService = user.NewService(s.GetLog(), s.GetDBLayer(ctx), s.GetTxManager(ctx))
 	}
 	return s.userService
 }
