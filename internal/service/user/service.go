@@ -1,20 +1,26 @@
 package user
 
 import (
-	"github.com/Str1m/auth/internal/client/db"
-	"github.com/Str1m/auth/internal/storage"
+	"context"
+	modelService "github.com/Str1m/auth/internal/model"
 	"log/slog"
 )
 
+type DBLayer interface {
+	Create(ctx context.Context, info *modelService.UserInfo, hashedPassword []byte) (int64, error)
+	Get(ctx context.Context, id int64) (*modelService.User, error)
+	Update(ctx context.Context, id int64, name, email *string) error
+	Delete(ctx context.Context, id int64) error
+}
 type Service struct {
-	log            *slog.Logger
-	UserRepository storage.Repository
-	TxManager      db.TxManager
+	log          *slog.Logger
+	UserDBClient DBLayer
+	//TxManager      db.TxManager
 }
 
-func NewService(log *slog.Logger, authRepo storage.Repository, txManager db.TxManager) *Service {
+func NewService(log *slog.Logger, dbClient DBLayer) *Service {
 	return &Service{
-		log:            log,
-		UserRepository: authRepo,
+		log:          log,
+		UserDBClient: dbClient,
 	}
 }

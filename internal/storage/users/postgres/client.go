@@ -6,20 +6,28 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// TODO: Пусть будет врапер
 type key string
 
 const (
 	TxKey key = "tx"
 )
 
-type ClientPG struct {
-	pg *pgxpool.Pool
+type DBLayer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Ping(ctx context.Context) error
+	Close()
 }
 
-func NewClientPG(pg *pgxpool.Pool) *ClientPG {
+type ClientPG struct {
+	pg DBLayer
+}
+
+func NewClientPG(pg DBLayer) *ClientPG {
 	return &ClientPG{pg: pg}
 }
 

@@ -59,10 +59,6 @@ func (p *pg) Close() {
 	p.db.Close()
 }
 
-func (p *pg) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
-	return p.db.BeginTx(ctx, txOptions)
-}
-
 func (p *pg) ScanOneContext(ctx context.Context, dest any, q db.Query, args ...any) error {
 	row, err := p.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -78,6 +74,11 @@ func (p *pg) ScanAllContext(ctx context.Context, dest any, q db.Query, args ...a
 	}
 
 	return pgxscan.ScanAll(dest, row)
+}
+
+// // -------------------------------
+func (p *pg) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
+	return p.db.BeginTx(ctx, txOptions)
 }
 
 func MakeContextTx(ctx context.Context, tx pgx.Tx) context.Context {

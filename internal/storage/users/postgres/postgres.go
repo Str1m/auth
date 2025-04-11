@@ -62,7 +62,6 @@ func (r *StoragePG) Create(ctx context.Context, info *modelService.UserInfo, has
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
-
 	return id, nil
 }
 
